@@ -1,116 +1,140 @@
-# Завдання 1.3. Компіляція з використанням бібліотек
+# Завдання 1.4. Багатопоток
 
 ## Тезисно що було зроблено
 
-- Демонстрація процесу компіляції та лінкування проєкту, що складається з кількох файлів - main.c, input.c, output.c, process.c, process1.c
-- Створення статичних (.a) та динамічних (.so) бібліотек
-- Лінкування бібліотек, що знаходяться у системних (/usr/lib) та користувацьких (~/mylibs) каталогах
-- Автоматизація процесу компіляції за допомогою Makefile та CMake
+- Реалізація багатопоточності на мові C з використанням бібліотеки **pthread**
+- Виконання коду за допомогою **OpenMP**
+- Версія програми на **C++** з використанням **std::thread**
+- Аналіз продуктивності за допомогою утиліти **time** та перевірки витоку пам'яті через **valgrind**
 
 ## Програмні вимоги
 
 - Середовище запуску - термінал Linux (btw у цій практичній використовувався Ubuntu через VirtualBox)
-- Компілятор - GCC
-- +Утиліта - Make
+- Компілятори - GCC та G++
+- Утиліта - Valgrind
 
 ## Збірка та запуск
 
-Процес збірки складається зі створення бібліотек та компіляції головної програми
-### 1. Створення статичних бібліотек (.a)
+### 1. -pthread
 
-Спочатку створюємо бібліотеки, які будуть використовуватися програмою:
-```
-gcc -c process1.c -o process1.o
-ar rcs libprocess1.a process1.o
-sudo cp libprocess1.a /usr/lib/
+Компіляція програми з явною підтримкою багатопоточності **-pthread**. Програма запускає два модулі, кожен з яких імітує роботу тривалістю 2 секунди
 
-mkdir -p ~/mylibs
-gcc -c process.c -o process.o
-ar rcs ~/mylibs/libprocess.a process.o
+**Компіляція:**
 ```
-### 2. Компіляція головної програми
-
-Збираємо програму, вказуючи компілятору, де шукати новостворені бібліотеки:
-```
-gcc main.c input.c output.c -L/usr/lib -lprocess1 -L~/mylibs -lprocess -o my_program
-```
-### 3. Запуск
-
-Після успішної компіляції програма запускається наступною командою:
-```
-./my_program
-```
-### 4. Робота з динамічними бібліотеками (.so)
-
-Створюємо динамічні бібліотеки та вказати шлях до них перед запуском:
-```
-gcc -c -fPIC process.c -o process.o
-gcc -shared -o ~/mylibs/libprocess.so process.o
-
-export LD_LIBRARY_PATH=$HOME/mylibs:$LD_LIBRARY_PATH - команда перед запуском, виконується в кожній новій сесії термінала
-
-./my_program
+gcc -Wall -Wextra -pthread main.c module1.c module2.c -o threaded_program
 ```
 
-## Автоматизація за допомоги Makefile
-
-Для спрощення процесу створюємо та використовуємо Makefile:
+**Запуск:**
 ```
-CC = gcc
-CFLAGS = -g -O2 -Wall
-LIBS = -L/usr/lib -lprocess1 -L$(HOME)/mylibs -lprocess
-
-all: my_program
-
-my_program: main.o input.o output.o
-	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-clean:
-	rm -f *.o my_program
-```
-Команди для роботи з Makefile:
-```
-make - зібрати проєкт
-make clean - очистити папку від файлів збірки
+./threaded_program
 ```
 
-## Автоматизація за допомоги CMake
+### 2. OpenMP
 
-Створюємо файл CMakeLists.txt:
+**Компіляція:**
 ```
-cmake_minimum_required(VERSION 3.10)
-
-project(Lab1_3)
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O2")
-
-#Finding all libs
-#System process1
-find_library(LIB_PROCESS1 process1 PATHS /usr/lib)
-#Home process
-find_library(LIB_PROCESS process PATHS $ENV{HOME}/mylibs)
-
-add_executable(my_program main.c input.c output.c)
-#Connecting libs to prog
-target_link_libraries(my_program ${LIB_PROCESS1} ${LIB_PROCESS})
-```
-Команди для роботи з CMake:
-```
-cmake .(саме пробіл - крапка, щоб вказати поточну папку) - створити файли для збірки
-make - скомпілювати програму
+gcc -Wall -Wextra -fopenmp main_omp.c module1.c module2.c -o threaded_program_omp
 ```
 
-## Результат
+**Запуск:**
+```
+./threaded_program_omp
+```
 
-При успішному запуску, програма виведе послідовність виклику функцій:
+### 3. C++ із std::thread
+
+**Компіляція:**
 ```
-Starting program...
-Input is here!!!
-System lib AKA Process1 was called.
-User lib Process was called.
-Output is here.!.
-Ending Program.
+g++ -Wall -Wextra -pthread main_cpp.cpp module1.c module2.c -o threaded_program_cpp
 ```
+**Запуск:**
+```
+./threaded_program_cpp
+```
+### Аналізи
+**Перевірка продуктивності через time**
+
+Для підтвердження паралельного виконання використовувалася команда time. Оскільки кожен з двох модулів виконується 2 секунди, послідовне виконання повинно було зайняти 4 секунди
+
+**Результат виконання:**
+```
+user@user:~/lab1_4$ time ./threaded_program
+Main - starting threads...
+Module 1 - 2 sec work...
+Module 2 - another 2sec work...
+Module 1 - work finished.
+Module 2 - work finished.
+Main - all threads have finished.
+
+real	0m2.003s
+user	0m0.000s
+sys	0m0.002s
+user@user:~/lab1_4$ time ./threaded_program_omp
+Main(OMP) - starting parallel sections...
+Module 1 - 2 sec work...
+Module 2 - another 2sec work...
+Module 1 - work finished.
+Module 2 - work finished.
+Main(OMP) - all sections finished.
+
+real	0m2.011s
+user	0m0.000s
+sys	0m0.002s
+```
+Час ```real 2.003s``` підтверджує, що потоки виконувалися одночасно
+
+**Перевірка пам'яті через Valgrind**
+
+**Аналіз на наявність витоків пам'яті та помилок потоків:**
+```
+user@user:~/lab1_4$ valgrind ./threaded_program_omp
+==2364== Memcheck, a memory error detector
+==2364== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.
+==2364== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==2364== Command: ./threaded_program_omp
+==2364== 
+Main(OMP) - starting parallel sections...
+Module 1 - 2 sec work...
+Module 2 - another 2sec work...
+Module 1 - work finished.
+Module 2 - work finished.
+Main(OMP) - all sections finished.
+==2364== 
+==2364== HEAP SUMMARY:
+==2364==     in use at exit: 2,416 bytes in 6 blocks
+==2364==   total heap usage: 7 allocs, 1 frees, 3,440 bytes allocated
+==2364== 
+==2364== LEAK SUMMARY:
+==2364==    definitely lost: 0 bytes in 0 blocks
+==2364==    indirectly lost: 0 bytes in 0 blocks
+==2364==      possibly lost: 288 bytes in 1 blocks
+==2364==    still reachable: 2,128 bytes in 5 blocks
+==2364==         suppressed: 0 bytes in 0 blocks
+==2364== Rerun with --leak-check=full to see details of leaked memory
+==2364== 
+==2364== For lists of detected and suppressed errors, rerun with: -s
+==2364== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+```
+Результат показав відсутність критичних помилок - ```ERROR SUMMARY: 0 errors```
+
+### Результат
+
+При успішному запуску будь-якої з версій програми, виводиться повідомлення про старт та завершення потоків, буде лише змінюватися ця частина виводу - ```Main; Main(OMP); Main(C++)...```:
+```
+Main - starting threads...
+Module 1 - 2 sec work...
+Module 2 - another 2sec work...
+Module 1 - work finished.
+Module 2 - work finished.
+Main - all threads have finished.
+```
+
+## Висновки
+
+У цій роботі було продемонстровано принципи системного програмування, зокрема безпосереднє керування ресурсами процесора.
+Ефективність підходу було підтверджено у терміналі за допомогою команди **time** - скорочення часу виконання вдвічі засвідчило, що планувальник ОС успішно розподілив навантаження між ядрами.
+
+Реалізацію виконано на Linux, оскільки в цій системі потоки працюють дуже ефективно і майже не навантажують систему при запуску.
+Це робить Linux ідеальною платформою для серверного програмного забезпечення, де потрібно обробляти тисячі запитів одночасно.
+
+Окрему увагу було приділено роботі з пам'яттю. Оскільки потоки використовують спільний буфер у віртуальному адресному просторі, для перевірки безпеки даних та відсутності витоків пам'яті було застосовано утиліту **valgrind**.
