@@ -1,140 +1,160 @@
-# Завдання 1.4. Багатопоток
+# Практична робота №2
 
 ## Тезисно що було зроблено
 
-- Реалізація багатопоточності на мові C з використанням бібліотеки **pthread**
-- Виконання коду за допомогою **OpenMP**
-- Версія програми на **C++** з використанням **std::thread**
-- Аналіз продуктивності за допомогою утиліти **time** та перевірки витоку пам'яті через **valgrind**
+- Дослідження типу **time_t**, його розміру та поведінки при переповненні на 64-бітній системі
+- Аналіз сегментів виконуваного файлу - **text, data, bss**. Їх зміни в залежності від оголошення глобальних та локальних змінних
+- Дослідження стека викликів завислого процесу за допомогою дебагера **GDB**
+- Дослідження розподілу пам'яті у багатопотоковій програмі
 
 ## Програмні вимоги
 
-- Середовище запуску - термінал Linux (btw у цій практичній використовувався Ubuntu через VirtualBox)
-- Компілятори - GCC та G++
-- Утиліта - Valgrind
+- Середовище запуску - термінал Linux
+- Компілятор - GCC
+- Утиліти - GDB, size
 
 ## Збірка та запуск
 
-### 1. -pthread
+### 1. Дослідження time_t (Завдання 1)
 
-Компіляція програми з явною підтримкою багатопоточності **-pthread**. Програма запускає два модулі, кожен з яких імітує роботу тривалістю 2 секунди
+Програма визначає розмір time_t (64 біти) та демонструє переповнення при спробі перевищити максимальне значення (2^63 - 1), що призводить до переходу у мінімальне від'ємне
 
-**Компіляція:**
+**Компіляція та запуск:**
 ```
-gcc -Wall -Wextra -pthread main.c module1.c module2.c -o threaded_program
-```
+user@user:~/lab2$ gcc 1.c -o 1
+1.c: In function ‘main’:
+1.c:8:24: warning: overflow in conversion from ‘double’ to ‘time_t’ ...
+user@user:~/lab2$ ./1
+time_t bits (1 bit +- sign): 64
 
-**Запуск:**
-```
-./threaded_program
-```
+Max time_t is 2^63 - 1: 9223372036854775807
 
-### 2. OpenMP
-
-**Компіляція:**
-```
-gcc -Wall -Wextra -fopenmp main_omp.c module1.c module2.c -o threaded_program_omp
+++time1 result: -9223372036854775808
+Negative value mrans 2^63 is max time, because it OVERFLOWED when ++time1
 ```
 
-**Запуск:**
-```
-./threaded_program_omp
-```
+### 2. Аналіз сегментів виконуваного файлу (Завдання 2)
 
-### 3. C++ із std::thread
+Було створено 4 версії "hello world" для аналізу, як оголошення змінних впливає на розмір сегментів
 
-**Компіляція:**
+**2.1. Базова програма:**
 ```
-g++ -Wall -Wextra -pthread main_cpp.cpp module1.c module2.c -o threaded_program_cpp
+user@user:~/lab2$ ls -l 2-1
+-rwxrwxr-x 1 user user 15960 Feb 15 18:06 2-1
+user@user:~/lab2$ size 2-1
+   text	   data	    bss	    dec	    hex	filename
+   1374	    600	      8	   1982	    7be	2-1
 ```
-**Запуск:**
-```
-./threaded_program_cpp
-```
-### Аналізи
-**Перевірка продуктивності через time**
+**2.2. Додано глобальний неініціалізований масив (int arr[1000]):**
 
-Для підтвердження паралельного виконання використовувалася команда time. Оскільки кожен з двох модулів виконується 2 секунди, послідовне виконання повинно було зайняти 4 секунди
-
-**Результат виконання:**
+Виріс сегмент BSS, де зберігаються неініціалізовані дані:
 ```
-user@user:~/lab1_4$ time ./threaded_program
-Main - starting threads...
-Module 1 - 2 sec work...
-Module 2 - another 2sec work...
-Module 1 - work finished.
-Module 2 - work finished.
-Main - all threads have finished.
-
-real	0m2.003s
-user	0m0.000s
-sys	0m0.002s
-user@user:~/lab1_4$ time ./threaded_program_omp
-Main(OMP) - starting parallel sections...
-Module 1 - 2 sec work...
-Module 2 - another 2sec work...
-Module 1 - work finished.
-Module 2 - work finished.
-Main(OMP) - all sections finished.
-
-real	0m2.011s
-user	0m0.000s
-sys	0m0.002s
+user@user:~/lab2$ ls -l 2-2
+-rwxrwxr-x 1 user user 15984 Feb 15 18:07 2-2
+user@user:~/lab2$ size 2-2
+   text	   data	    bss	    dec	    hex	filename
+   1374	    600	   4032	   6006	   1776	2-2
 ```
-Час ```real 2.003s``` підтверджує, що потоки виконувалися одночасно
+**2.3. Глобальний масив ініціалізовано (int arr[1000] = {1}):**
 
-**Перевірка пам'яті через Valgrind**
-
-**Аналіз на наявність витоків пам'яті та помилок потоків:**
+Масив перемістився з BSS у сегмент DATA, що збільшило розмір файлу на диску:
 ```
-user@user:~/lab1_4$ valgrind ./threaded_program_omp
-==2364== Memcheck, a memory error detector
-==2364== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.
-==2364== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
-==2364== Command: ./threaded_program_omp
-==2364== 
-Main(OMP) - starting parallel sections...
-Module 1 - 2 sec work...
-Module 2 - another 2sec work...
-Module 1 - work finished.
-Module 2 - work finished.
-Main(OMP) - all sections finished.
-==2364== 
-==2364== HEAP SUMMARY:
-==2364==     in use at exit: 2,416 bytes in 6 blocks
-==2364==   total heap usage: 7 allocs, 1 frees, 3,440 bytes allocated
-==2364== 
-==2364== LEAK SUMMARY:
-==2364==    definitely lost: 0 bytes in 0 blocks
-==2364==    indirectly lost: 0 bytes in 0 blocks
-==2364==      possibly lost: 288 bytes in 1 blocks
-==2364==    still reachable: 2,128 bytes in 5 blocks
-==2364==         suppressed: 0 bytes in 0 blocks
-==2364== Rerun with --leak-check=full to see details of leaked memory
-==2364== 
-==2364== For lists of detected and suppressed errors, rerun with: -s
-==2364== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+user@user:~/lab2$ ls -l 2-3
+-rwxrwxr-x 1 user user 20000 Feb 15 18:09 2-3
+user@user:~/lab2$ size 2-3
+   text	   data	    bss	    dec	    hex	filename
+   1374	   4616	      8	   5998	   176e	2-3
 ```
-Результат показав відсутність критичних помилок - ```ERROR SUMMARY: 0 errors```
+**2.4. Додано локальний масив у main():**
 
-### Результат
-
-При успішному запуску будь-якої з версій програми, виводиться повідомлення про старт та завершення потоків, буде лише змінюватися ця частина виводу - ```Main; Main(OMP); Main(C++)...```:
+Розміри сегментів майже не змінилися, оскільки локальний масив знаходиться на стеку і створюється під час виконання, а не зберігається у файлі:
 ```
-Main - starting threads...
-Module 1 - 2 sec work...
-Module 2 - another 2sec work...
-Module 1 - work finished.
-Module 2 - work finished.
-Main - all threads have finished.
+user@user:~/lab2$ ls -l 2-4
+-rwxrwxr-x 1 user user 20056 Feb 15 18:10 2-4
+user@user:~/lab2$ size 2-4
+   text	   data	    bss	    dec	    hex	filename
+   1574	   4624	      8	   6206	   183e	2-4
 ```
 
-## Висновки
+### 3. Визначення адрес пам'яті (Завдання 3)
 
-У цій роботі було продемонстровано принципи системного програмування, зокрема безпосереднє керування ресурсами процесора.
-Ефективність підходу було підтверджено у терміналі за допомогою команди **time** - скорочення часу виконання вдвічі засвідчило, що планувальник ОС успішно розподілив навантаження між ядрами.
+Програма виводить адреси ключових областей пам'яті:
+```
+user@user:~/lab2$ gcc 3.c -o 3
+user@user:~/lab2$ ./3
+Text segment, aka main(), is at: 0x55ebba9601e3
+Global int (data segment) is at: 0x55ebba963010
+Heap is at: 0x55ebd2a662a0
+The stack top is near: 0x7fffe03a0bd0
+Func called
+Now stack top is near: 0x7fffe03a0bd4
+```
 
-Реалізацію виконано на Linux, оскільки в цій системі потоки працюють дуже ефективно і майже не навантажують систему при запуску.
-Це робить Linux ідеальною платформою для серверного програмного забезпечення, де потрібно обробляти тисячі запитів одночасно.
+### 4. Дослідження стека процесу за допомогою GDB (Завдання 4)
 
-Окрему увагу було приділено роботі з пам'яттю. Оскільки потоки використовують спільний буфер у віртуальному адресному просторі, для перевірки безпеки даних та відсутності витоків пам'яті було застосовано утиліту **valgrind**.
+Було використано два термінали: в одному програма була "заморожена" викликом pause(), в іншому - проаналізована через gdb:
+
+**Термінал 1 (Запуск програми):**
+```
+user@user:~/lab2$ gcc -g 4.c -o 4
+user@user:~/lab2$ ./4
+In function                 main; &localvar = 0x7fff07ba6904
+In function                  foo; &localvar = 0x7fff07ba68d4
+In function                  bar; &localvar = 0x7fff07ba68b4
+In function    bar_is_now_closed; &localvar = 0x7fff07ba6894
+
+ Now blocking on pause()...
+Terminated
+```
+**Термінал 2 (Аналіз через GDB):**
+```
+user@user:~$ ps aux | grep ./4
+user        2762  0.0  0.0   2680  1528 pts/0    S+   19:08   0:00 ./4
+...
+user@user:~$ sudo gdb -q
+(gdb) attach 2762
+Attaching to process 2762
+Reading symbols from /home/user/lab2/4...
+...
+(gdb) bt
+#0  0x000076d10c2fa3d4 in __libc_pause () at ../sysdeps/unix/sysv/linux/pause.c:29
+#1  0x00005b3af9280224 in bar_is_now_closed ()
+#2  0x00005b3af9280287 in bar ()
+#3  0x00005b3af92802ea in foo ()
+#4  0x00005b3af9280354 in main ()
+(gdb) detach
+Detaching from program: /home/user/lab2/4, process 2762
+...
+(gdb) quit
+user@user:~$ kill 2762
+```
+
+### 5. IP та Стек (Завдання 5)
+
+Для розгляду гіпотетичної ситуації заміни лічильника команд (IP) на вершину стека було написано демонстраційний код. Проблема полягає в тому, що при виклику функції, процесор зберігає адресу повернення на стеку. Якщо сама верхівка стека використовується як IP, то для адреси повернення просто не залишається місця, не затерши поточну команду. Це призведе до збою програми після завершення функції, бо процесор більше не буде знати, куди повертатися.
+Запуск коду:
+```
+user@user:~/lab2$ gcc 5.c -o 5
+user@user:~/lab2$ ./5
+Before func
+Inside func
+After func
+```
+
+### 6. Завдання за 4-м варіантом
+
+Програма демонструє, що стандартний алокатор malloc є потокобезпечним, адже кожен з 4 потоків отримує унікальну адресу пам'яті на спільному Heap:
+```
+user@user:~/lab2$ gcc -pthread 6.c -o 6
+user@user:~/lab2$ ./6
+Starting 4 threads to test memory allocation...
+Thread 2: Allocated memory at address: 0x7b3738000b70
+Thread 1: Allocated memory at address: 0x7b373c000b70
+Thread 3: Allocated memory at address: 0x7b3734000b70
+Thread 0: Allocated memory at address: 0x7b3740000b70
+Thread 2: Data verified successfully. Freeing memory.
+Thread 0: Data verified successfully. Freeing memory.
+Thread 1: Data verified successfully. Freeing memory.
+Thread 3: Data verified successfully. Freeing memory.
+All threads finished execution.
+```
