@@ -47,9 +47,16 @@ tick 5
 ### 3. Передача даних через сигнали (Завдання 3)
 Реалізовано модель підписник-видавець на базі real-time сигналів.
 Програма підтримує чергу сигналів та дозволяє передавати цілі числа від одного процесу до іншого через функцію sigqueue:
+
+Термінал 2:
 ```
-# Термінал 1 (Subscriber)
-user@user:~/lab10$ ./3 sub
+user@user:./3 pub 228
+user@user:./3 pub 1337
+user@user:./3 pub -1
+```
+
+Термінал 1:
+```
 Received value: 228 from PID: 3711
 Received value: 1337 from PID: 3712
 Received value: -1 from PID: 3713
