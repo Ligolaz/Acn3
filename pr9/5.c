@@ -1,22 +1,27 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <string.h>
+#include <stdlib.h>
 
 int main() {
-	int p[2];
-	pipe(p);
-	char *msg = "Hello";
-	char buf[100];
+	const char *u = "user";
+	const char *f = "/tmp/test.txt";
 
-	//Writing only 5 bytes
-	write(p[1], msg, strlen(msg));
+	printf("Creating file...\n");
+	system("echo 'Hello' > /tmp/test.txt");
 
-	printf("Requested: 100 bytes from pipe\n");
-	//Requesting 100, but only 5 are available
-	ssize_t n = read(p[0], buf, 100);
+	//Root sets owner and 640 perms (Group read only)
+	printf("Root taking ownership, perms 640...\n");
+	char cmd[256];
+	snprintf(cmd, sizeof(cmd), "sudo chown root:sudo %s && sudo chmod 640 %s", f, f);
+	system(cmd);
 
-	printf("Actually read: %ld bytes\n", n);
-	printf("Reason: Pipe had only 5 bytes available at the moment\n");
+	//Check read
+	printf("Testing read for %s:\n", u);
+	snprintf(cmd, sizeof(cmd), "sudo -u %s cat %s && echo 'Read OK' || echo 'Read Failed'", u, f);
+	system(cmd);
 
+	//Check write
+	printf("Testing write for %s:\n", u);
+	snprintf(cmd, sizeof(cmd), "sudo -u %s sh -c 'echo x >> %s' 2>/dev/null && echo 'Write OK' || echo 'Write Failed'", u, f);
+	system(cmd);
 	return 0;
 }
