@@ -1,4 +1,4 @@
-# Мініпроєкт
+# Міні-проєкт
 
 ## Тезисно що було зроблено
 
@@ -91,6 +91,7 @@ exit()
 
 ## Скріншот роботи
 
+<img width="1009" height="578" alt="image" src="https://github.com/user-attachments/assets/a32bc66c-9d34-4e01-af5f-c10a08a91d3f" />
 
 
 ## Висновки
